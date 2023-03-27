@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
-use swc_atoms::{js_word, JsWord};
-use swc_common::{Mark, Span, SyntaxContext, DUMMY_SP};
-use swc_ecmascript::ast::*;
-use swc_ecmascript::visit::{Fold, FoldWith};
+use swc_core::common::{Mark, Span, SyntaxContext, DUMMY_SP};
+use swc_core::ecma::ast::*;
+use swc_core::ecma::atoms::{js_word, JsWord};
+use swc_core::ecma::visit::{Fold, FoldWith};
 
 use crate::id;
 use crate::utils::{
@@ -1117,14 +1117,14 @@ mod tests {
   use crate::collect_decls;
   use crate::utils::BailoutReason;
   use std::iter::FromIterator;
-  use swc_common::chain;
-  use swc_common::comments::SingleThreadedComments;
-  use swc_common::{sync::Lrc, FileName, Globals, Mark, SourceMap};
-  use swc_ecmascript::codegen::text_writer::JsWriter;
-  use swc_ecmascript::parser::lexer::Lexer;
-  use swc_ecmascript::parser::{Parser, StringInput};
-  use swc_ecmascript::transforms::{fixer, hygiene, resolver};
-  use swc_ecmascript::visit::VisitWith;
+  use swc_core::common::chain;
+  use swc_core::common::comments::SingleThreadedComments;
+  use swc_core::common::{sync::Lrc, FileName, Globals, Mark, SourceMap};
+  use swc_core::ecma::codegen::text_writer::JsWriter;
+  use swc_core::ecma::parser::lexer::Lexer;
+  use swc_core::ecma::parser::{Parser, StringInput};
+  use swc_core::ecma::transforms::base::{fixer::fixer, helpers, hygiene::hygiene, resolver};
+  use swc_core::ecma::visit::VisitWith;
   extern crate indoc;
   use self::indoc::indoc;
 
@@ -1142,35 +1142,32 @@ mod tests {
 
     let mut parser = Parser::new_from(lexer);
     match parser.parse_module() {
-      Ok(module) => swc_common::GLOBALS.set(&Globals::new(), || {
-        swc_ecmascript::transforms::helpers::HELPERS.set(
-          &swc_ecmascript::transforms::helpers::Helpers::new(false),
-          || {
-            let unresolved_mark = Mark::fresh(Mark::root());
-            let global_mark = Mark::fresh(Mark::root());
-            let module = module.fold_with(&mut resolver(unresolved_mark, global_mark, false));
+      Ok(module) => swc_core::common::GLOBALS.set(&Globals::new(), || {
+        helpers::HELPERS.set(&helpers::Helpers::new(false), || {
+          let unresolved_mark = Mark::fresh(Mark::root());
+          let global_mark = Mark::fresh(Mark::root());
+          let module = module.fold_with(&mut resolver(unresolved_mark, global_mark, false));
 
-            let mut collect = Collect::new(
-              source_map.clone(),
-              collect_decls(&module),
-              Mark::fresh(Mark::root()),
-              global_mark,
-              true,
-            );
-            module.visit_with(&mut collect);
+          let mut collect = Collect::new(
+            source_map.clone(),
+            collect_decls(&module),
+            Mark::fresh(Mark::root()),
+            global_mark,
+            true,
+          );
+          module.visit_with(&mut collect);
 
-            let (module, res) = {
-              let mut hoist = Hoist::new("abc", unresolved_mark, &collect);
-              let module = module.fold_with(&mut hoist);
-              (module, hoist.get_result())
-            };
+          let (module, res) = {
+            let mut hoist = Hoist::new("abc", unresolved_mark, &collect);
+            let module = module.fold_with(&mut hoist);
+            (module, hoist.get_result())
+          };
 
-            let module = module.fold_with(&mut chain!(hygiene(), fixer(Some(&comments))));
+          let module = module.fold_with(&mut chain!(hygiene(), fixer(Some(&comments))));
 
-            let code = emit(source_map, comments, &module);
-            (collect, code, res)
-          },
-        )
+          let code = emit(source_map, comments, &module);
+          (collect, code, res)
+        })
       }),
       Err(err) => {
         panic!("{:?}", err);
@@ -1188,13 +1185,13 @@ mod tests {
         &mut buf,
         Some(&mut src_map_buf),
       ));
-      let config = swc_ecmascript::codegen::Config {
+      let config = swc_core::ecma::codegen::Config {
         minify: false,
         ascii_only: false,
-        target: swc_ecmascript::ast::EsVersion::Es5,
+        target: swc_core::ecma::ast::EsVersion::Es5,
         omit_last_semi: false,
       };
-      let mut emitter = swc_ecmascript::codegen::Emitter {
+      let mut emitter = swc_core::ecma::codegen::Emitter {
         cfg: config,
         comments: Some(&comments),
         cm: source_map,
